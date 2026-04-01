@@ -1,0 +1,250 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  username          String    @unique
+  password          String
+  firstName         String
+  lastName          String
+  cpf               String    @unique
+  phone             String?
+  birthDate         DateTime
+  role              String    @default("USER")        // USER | VIP | ADMIN | SUPER_ADMIN
+  status            String    @default("ACTIVE")      // ACTIVE | SUSPENDED | BANNED | PENDING_VERIFICATION
+  emailVerified     Boolean   @default(false)
+  twoFactorEnabled  Boolean   @default(false)
+  twoFactorSecret   String?
+  avatarUrl         String?
+
+  // Wallet
+  balance           Float     @default(0.0)
+  bonusBalance      Float     @default(0.0)
+
+  // Security
+  loginAttempts     Int       @default(0)
+  lockedUntil       DateTime?
+  lastLoginAt       DateTime?
+  lastLoginIp       String?
+
+  // Timestamps
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  bets              Bet[]
+  transactions      Transaction[]
+  refreshTokens     RefreshToken[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id          String   @id @default(uuid())
+  token       String   @unique
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  ipAddress   String?
+  userAgent   String?
+  isRevoked   Boolean  @default(false)
+
+  @@map("refresh_tokens")
+}
+
+model Sport {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  slug        String   @unique
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  games       Game[]
+
+  @@map("sports")
+}
+
+model Team {
+  id          String   @id @default(uuid())
+  name        String
+  shortName   String?
+  logo        String?
+  country     String?
+
+  homeGames   Game[]   @relation("HomeTeam")
+  awayGames   Game[]   @relation("AwayTeam")
+
+  @@map("teams")
+}
+
+model Game {
+  id              String   @id @default(uuid())
+  externalId      String?  @unique
+  sportId         String
+  sport           Sport    @relation(fields: [sportId], references: [id])
+  homeTeamId      String
+  homeTeam        Team     @relation("HomeTeam", fields: [homeTeamId], references: [id])
+  awayTeamId      String
+  awayTeam        Team     @relation("AwayTeam", fields: [awayTeamId], references: [id])
+
+  startTime       DateTime
+  status          String   @default("SCHEDULED")  // SCHEDULED | LIVE | FINISHED | CANCELLED | POSTPONED
+
+  // Score
+  homeScore       Int?
+  awayScore       Int?
+  minute          Int?
+  period          String?
+
+  // Odds snapshot
+  homeOdds        Float?
+  drawOdds        Float?
+  awayOdds        Float?
+
+  league          String?
+  country         String?
+  streamUrl       String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  bets            Bet[]
+  markets         Market[]
+
+  @@map("games")
+}
+
+model Market {
+  id          String     @id @default(uuid())
+  gameId      String
+  game        Game       @relation(fields: [gameId], references: [id])
+  name        String     // "1X2", "Over/Under", "BTTS"
+  isActive    Boolean    @default(true)
+
+  selections  Selection[]
+
+  @@map("markets")
+}
+
+model Selection {
+  id          String   @id @default(uuid())
+  marketId    String
+  market      Market   @relation(fields: [marketId], references: [id])
+  name        String   // "Home", "Draw", "Away", "Over 2.5"
+  odds        Float
+  isActive    Boolean  @default(true)
+  result      String?  // "WIN" | "LOSE" | "VOID"
+
+  betSelections BetSelection[]
+
+  @@map("selections")
+}
+
+model Bet {
+  id            String   @id @default(uuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id])
+  gameId        String
+  game          Game     @relation(fields: [gameId], references: [id])
+
+  type          String   @default("SINGLE")   // SINGLE | MULTIPLE | SYSTEM
+  status        String   @default("PENDING")  // PENDING | WON | LOST | VOID | CASHOUT
+
+  stake         Float
+  potentialWin  Float
+  actualWin     Float?
+  totalOdds     Float
+
+  isBonus       Boolean  @default(false)
+
+  settledAt     DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  selections    BetSelection[]
+
+  @@map("bets")
+}
+
+model BetSelection {
+  id            String    @id @default(uuid())
+  betId         String
+  bet           Bet       @relation(fields: [betId], references: [id])
+  selectionId   String
+  selection     Selection @relation(fields: [selectionId], references: [id])
+  oddsAtTime    Float
+
+  @@map("bet_selections")
+}
+
+model Transaction {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+
+  type            String   // DEPOSIT | WITHDRAWAL | BET_STAKE | BET_WIN | BET_REFUND | BONUS_CREDIT | BONUS_DEBIT
+  status          String   @default("PENDING")  // PENDING | COMPLETED | FAILED | CANCELLED | REFUNDED
+  amount          Float
+  fee             Float    @default(0)
+  netAmount       Float
+
+  paymentMethod   String?  // "PIX" | "CREDIT_CARD" | "BANK_TRANSFER"
+  paymentId       String?
+  pixKey          String?
+  pixQrCode       String?
+
+  description     String?
+  metadata        String?  // JSON string
+
+  processedAt     DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("transactions")
+}
+
+model Promotion {
+  id              String   @id @default(uuid())
+  title           String
+  description     String
+  type            String   // WELCOME_BONUS | RELOAD_BONUS | FREE_BET | CASHBACK | ODDS_BOOST
+  value           Float
+  minDeposit      Float?
+  maxBonus        Float?
+  wagering        Float?
+  code            String?  @unique
+  startDate       DateTime
+  endDate         DateTime
+  isActive        Boolean  @default(true)
+  maxUses         Int?
+  currentUses     Int      @default(0)
+
+  createdAt       DateTime @default(now())
+
+  @@map("promotions")
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  action      String
+  resource    String?
+  resourceId  String?
+  details     String?  // JSON
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+
+  @@map("audit_logs")
+}
