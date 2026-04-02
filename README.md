@@ -4,6 +4,25 @@
 
 ---
 
+## Screenshots
+
+### Página Inicial — Home
+![Home Page](docs/screenshot-home.png)
+
+### Apostas ao Vivo
+![Live Betting](docs/screenshot-live.png)
+
+### Página do Jogo (Stats, Eventos, Escalações)
+![Game Details](docs/screenshot-game.png)
+
+### Carteira & Pagamentos
+![Wallet](docs/screenshot-wallet.png)
+
+### Painel Admin
+![Admin Panel](docs/screenshot-admin.png)
+
+---
+
 ## Stack Tecnológica
 
 ### Backend
